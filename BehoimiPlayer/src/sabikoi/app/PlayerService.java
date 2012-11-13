@@ -7,8 +7,10 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.database.sqlite.SQLiteDatabase;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnCompletionListener;
 import android.net.Uri;
@@ -27,6 +29,9 @@ public class PlayerService extends Service  implements OnCompletionListener{
 	ReporterHandler reporter;
 	int[] playcounts;
 	int[] skipcounts;
+	String playingsheet;
+	SQLiteDatabase db;//データベースオブジェクト
+	static int NOTIFICATION_ID = 999;
 	
 	@Override
 	public IBinder onBind(Intent intent) {
@@ -58,6 +63,12 @@ public class PlayerService extends Service  implements OnCompletionListener{
 					break;
 				case StaticFinals.MsgReplySet:
 					msgToActivity = msg.replyTo;
+					Message msg3 = Message.obtain(null,StaticFinals.MsgCursorupdate,cursor,0);
+					try {
+						msgToActivity.send(msg3);
+					} catch (RemoteException e) {
+						e.printStackTrace();
+					}
 					break;
 				case StaticFinals.MsgReplyUnset:
 					msgToActivity = null;
@@ -100,11 +111,16 @@ public class PlayerService extends Service  implements OnCompletionListener{
 	{
 		msgFromActivity = new Messenger(new IncommingHandler());
 		
+		//データベースオブジェクトの取得
+		DBHelper dbHelper = new DBHelper(this);
+		db=dbHelper.getWritableDatabase();
+		
 		filepathlist = intent.getStringArrayExtra("filepathlist");
 		cursor = intent.getIntExtra("cursor", 0);
 		int pos = intent.getIntExtra("seekposition", 0);
 		playcounts = intent.getIntArrayExtra("playcounts");
 		skipcounts = intent.getIntArrayExtra("skipcounts");
+		playingsheet = intent.getStringExtra("playingsheet");
 		mp = new MediaPlayer();
 		
 		try {
@@ -123,11 +139,39 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		//ノーティフィケーションオブジェクトの生成
 		Notification notification=new Notification();
 		notification.icon = R.drawable.ic_launcher;
-		PendingIntent pintent=PendingIntent.getActivity(this, 0, new Intent(this,sabikoi.app.PlayerActivity.class), 0);
-		notification.setLatestEventInfo(this, "ベホイミプレイヤー", filepathlist[cursor], pintent);
+		Intent subintent = new Intent(this,sabikoi.app.PlayerActivity.class);
+		subintent.putExtra("mode",StaticFinals.ModeNormal);
+		subintent.putExtra("filepathlist",filepathlist);
+		subintent.putExtra("cursor",cursor);
+		subintent.putExtra("playingsheet",playingsheet);
+		subintent.putExtra("playcounts",playcounts);
+		subintent.putExtra("skipcounts",skipcounts);
+		PendingIntent pintent=PendingIntent.getActivity(this, 0, subintent, 0);
+		notification.setLatestEventInfo(this, "ベホイミプレイヤー", filepathlist[cursor].substring(filepathlist[cursor].lastIndexOf("/")+1), pintent);
 		notification.flags = Notification.FLAG_FOREGROUND_SERVICE;
 		
-		startForeground(1,notification);
+		startForeground(NOTIFICATION_ID,notification);
+	}
+	
+	void updateNotification()
+	{
+		//ノーティフィケーションマネージャーの取得
+		NotificationManager nm = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+		//ノーティフィケーションオブジェクトの生成
+		Notification notification=new Notification();
+		notification.icon = R.drawable.ic_launcher;
+		Intent subintent = new Intent(this,sabikoi.app.PlayerActivity.class);
+		subintent.putExtra("mode",StaticFinals.ModeNormal);
+		subintent.putExtra("filepathlist",filepathlist);
+		subintent.putExtra("cursor",cursor);
+		subintent.putExtra("playingsheet",playingsheet);
+		subintent.putExtra("playcounts",playcounts);
+		subintent.putExtra("skipcounts",skipcounts);
+		PendingIntent pintent=PendingIntent.getActivity(this, 0, subintent, 0);
+		notification.setLatestEventInfo(this, "ベホイミプレイヤー", filepathlist[cursor].substring(filepathlist[cursor].lastIndexOf("/")+1), pintent);
+		notification.flags = Notification.FLAG_FOREGROUND_SERVICE;
+		
+		nm.notify(NOTIFICATION_ID, notification);
 	}
 	
 	void ChangeSong(int flag)
@@ -135,6 +179,26 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		Random rng = new Random();
 		int next;
 
+		//カウントを更新
+		if(flag == 0)
+		{
+			ContentValues values = new ContentValues();
+			values.put("playcount", playcounts[cursor]+1);
+			db.update("sheet", values,
+					"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
+			playcounts[cursor]++;
+		}
+		else
+		{
+			ContentValues values = new ContentValues();
+			values.put("playcount", playcounts[cursor]+1);
+			values.put("skipcount", skipcounts[cursor]+1);
+			db.update("sheet", values,
+					"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
+			playcounts[cursor]++;
+			skipcounts[cursor]++;
+		}
+		
 		while(true)
 		{
 			next = rng.nextInt(filepathlist.length);
@@ -164,6 +228,7 @@ public class PlayerService extends Service  implements OnCompletionListener{
 			stopSelf();
 		}else
 		{
+			updateNotification();
 			try{
 				mp.reset();
 

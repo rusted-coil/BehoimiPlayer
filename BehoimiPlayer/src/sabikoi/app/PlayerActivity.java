@@ -8,6 +8,7 @@ import android.content.ComponentName;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.os.Handler;
@@ -71,36 +72,21 @@ public class PlayerActivity extends Activity implements OnClickListener
 					nowplaying = false;
 					break;
 				case StaticFinals.MsgCursorupdate:
-					ChangeSong(msg.arg1,msg.arg2);
+					ChangeSong(msg.arg1);
 					break;
 			}
 		}
 	}
 	
-	void ChangeSong(int next, int flag)
+	void ChangeSong(int next)
 	{
-		//カウントを更新
-		if(flag == 0)
-		{
-			ContentValues values = new ContentValues();
-			values.put("playcount", playcounts[cursor]+1);
-			db.update("sheet", values,
-					"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
-			playcounts[cursor]++;
-		}
-		else
-		{
-			ContentValues values = new ContentValues();
-			values.put("playcount", playcounts[cursor]+1);
-			values.put("skipcount", skipcounts[cursor]+1);
-			db.update("sheet", values,
-					"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
-			playcounts[cursor]++;
-			skipcounts[cursor]++;
-		}
-		
 		cursor = next;
-		songtitle.setText(filepathlist[cursor]);
+		Cursor c = db.query("sheet", new String[]{"playcount","skipcount"}, 
+				"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]}, null,null,null);
+		c.moveToFirst();
+		playcounts[cursor] = c.getInt(0);
+		skipcounts[cursor] = c.getInt(1);
+		songtitle.setText(filepathlist[cursor].substring(filepathlist[cursor].lastIndexOf("/")+1));
 		statistics.setText("再生回数:" + playcounts[cursor] + " / スキップ回数:"+skipcounts[cursor]);
 	}
 	
@@ -146,14 +132,11 @@ public class PlayerActivity extends Activity implements OnClickListener
 		int mode = intent.getIntExtra("mode",StaticFinals.ModeNormal);
 		filepathlist = intent.getStringArrayExtra("filepathlist");
 		cursor = intent.getIntExtra("cursor", 0);
+		playingsheet = intent.getStringExtra("playingsheet");
+		playcounts = intent.getIntArrayExtra("playcounts");
+		skipcounts = intent.getIntArrayExtra("skipcounts");
 		if(mode == StaticFinals.ModeStartFolder || mode == StaticFinals.ModeStartPlaysheet)
 		{
-			if(mode == StaticFinals.ModeStartPlaysheet)
-			{
-				playingsheet = intent.getStringExtra("playingsheet");
-				playcounts = intent.getIntArrayExtra("playcounts");
-				skipcounts = intent.getIntArrayExtra("skipcounts");
-			}
 			//再生の開始
 			nowposition = 0;
 			PlayMedia();
@@ -254,8 +237,9 @@ public class PlayerActivity extends Activity implements OnClickListener
 	{
 		super.onResume();
 		//通信コネクション
-		bindService(new Intent(this,PlayerService.class),conn,0);
 		nowplaying = isServiceRunning("sabikoi.app.PlayerService");		
+		if(nowplaying)
+			bindService(new Intent(this,PlayerService.class),conn,0);
 	}
 	
 	@Override
@@ -269,6 +253,7 @@ public class PlayerActivity extends Activity implements OnClickListener
 		}catch(Exception e)
 		{
 		}
+		unbindService(conn);
 		msgFromService = null;
 		msgToService = null;
 	}
@@ -294,6 +279,7 @@ public class PlayerActivity extends Activity implements OnClickListener
 		intent2.putExtra("seekposition", nowposition);
 		intent2.putExtra("playcounts", playcounts);
 		intent2.putExtra("skipcounts", skipcounts);
+		intent2.putExtra("playingsheet", playingsheet);
 		startService(intent2);
 		bindService(new Intent(this,PlayerService.class),conn,0);
 		nowplaying = true;
