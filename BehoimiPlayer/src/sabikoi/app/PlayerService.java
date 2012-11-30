@@ -29,6 +29,7 @@ public class PlayerService extends Service  implements OnCompletionListener{
 	ReporterHandler reporter;
 	int[] playcounts;
 	int[] skipcounts;
+	int playoption;
 	String playingsheet;
 	SQLiteDatabase db;//データベースオブジェクト
 	static int NOTIFICATION_ID = 999;
@@ -121,6 +122,7 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		playcounts = intent.getIntArrayExtra("playcounts");
 		skipcounts = intent.getIntArrayExtra("skipcounts");
 		playingsheet = intent.getStringExtra("playingsheet");
+		playoption = intent.getIntExtra("playoption",0);
 		mp = new MediaPlayer();
 		
 		try {
@@ -167,6 +169,7 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		subintent.putExtra("playingsheet",playingsheet);
 		subintent.putExtra("playcounts",playcounts);
 		subintent.putExtra("skipcounts",skipcounts);
+		subintent.putExtra("playoption",playoption);
 		PendingIntent pintent=PendingIntent.getActivity(this, 0, subintent, 0);
 		notification.setLatestEventInfo(this, "ベホイミプレイヤー", filepathlist[cursor].substring(filepathlist[cursor].lastIndexOf("/")+1), pintent);
 		notification.flags = Notification.FLAG_FOREGROUND_SERVICE;
@@ -180,73 +183,64 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		int next;
 
 		//カウントを更新
-		if(flag == 0)
+		if(playoption == 1)
 		{
-			ContentValues values = new ContentValues();
-			values.put("playcount", playcounts[cursor]+1);
-			db.update("sheet", values,
-					"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
-			playcounts[cursor]++;
+			if(flag == 0)
+			{
+				ContentValues values = new ContentValues();
+				values.put("playcount", playcounts[cursor]+1);
+				db.update("sheet", values,
+						"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
+				playcounts[cursor]++;
+			}
+			else
+			{
+				ContentValues values = new ContentValues();
+				values.put("playcount", playcounts[cursor]+1);
+				values.put("skipcount", skipcounts[cursor]+1);
+				db.update("sheet", values,
+						"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
+				playcounts[cursor]++;
+				skipcounts[cursor]++;
+			}
+			
+			while(true)
+			{
+				next = rng.nextInt(filepathlist.length);
+				if(skipcounts[next] != 0)
+				{
+					int ran = rng.nextInt(1+playcounts[next]);
+					if(ran <= playcounts[next]-skipcounts[next])
+						break;
+				}else
+					break;
+			}
+			
+			cursor=next;		
 		}
 		else
-		{
-			ContentValues values = new ContentValues();
-			values.put("playcount", playcounts[cursor]+1);
-			values.put("skipcount", skipcounts[cursor]+1);
-			db.update("sheet", values,
-					"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
-			playcounts[cursor]++;
-			skipcounts[cursor]++;
-		}
+			cursor++;
 		
-		while(true)
-		{
-			next = rng.nextInt(filepathlist.length);
-			if(skipcounts[next] != 0)
-			{
-				int ran = rng.nextInt(1+playcounts[next]);
-				if(ran <= playcounts[next]-skipcounts[next])
-					break;
-			}else
-				break;
-		}
-		
-		cursor=next;		
 		if(cursor >= filepathlist.length)
+			cursor = 0;
+		updateNotification();
+		try{
+			mp.reset();
+
+			mp.setDataSource(filepathlist[cursor]);
+			mp.prepare();
+			mp.setOnCompletionListener(this);
+			mp.start();										
+		}catch(Exception e){
+			e.printStackTrace();
+		}						
+		if(msgToActivity != null)
 		{
-			mp.stop();
-			mp.setOnCompletionListener(null);
-			mp.release();
-			Message msg2 = Message.obtain(null,StaticFinals.MsgPause);
+			Message msg = Message.obtain(null,StaticFinals.MsgCursorupdate,cursor,flag);
 			try {
-				msgToActivity.send(msg2);
+				msgToActivity.send(msg);
 			} catch (RemoteException e) {
 				e.printStackTrace();
-			}
-			msgToActivity = null;
-			reporter = null;
-			stopSelf();
-		}else
-		{
-			updateNotification();
-			try{
-				mp.reset();
-
-				mp.setDataSource(filepathlist[cursor]);
-				mp.prepare();
-				mp.setOnCompletionListener(this);
-				mp.start();										
-			}catch(Exception e){
-				e.printStackTrace();
-			}						
-			if(msgToActivity != null)
-			{
-				Message msg = Message.obtain(null,StaticFinals.MsgCursorupdate,cursor,flag);
-				try {
-					msgToActivity.send(msg);
-				} catch (RemoteException e) {
-					e.printStackTrace();
-				}
 			}
 		}
 	}

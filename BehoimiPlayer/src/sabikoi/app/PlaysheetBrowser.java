@@ -2,6 +2,7 @@ package sabikoi.app;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import android.app.Activity;
 import android.content.Context;
@@ -24,20 +25,43 @@ public class PlaysheetBrowser extends Activity implements OnItemClickListener{
 	ArrayList<String> songpaths = new ArrayList<String>();
 	ArrayList<Integer> playcounts = new ArrayList<Integer>(); 
 	ArrayList<Integer> skipcounts = new ArrayList<Integer>(); 
+	int mode;
 	
   @Override
   public void onCreate(Bundle bundle) 
   {
 		super.onCreate(bundle);
 		
-		Intent intent = getIntent();
-		sheetname = intent.getStringExtra("sheetname");
+		Intent intent2 = getIntent();
+		sheetname = intent2.getStringExtra("sheetname");
+		mode = intent2.getIntExtra("mode", 0);
 
 		//データベースオブジェクトの取得
 		DBHelper dbHelper = new DBHelper(this);
 		db=dbHelper.getWritableDatabase();
 				
 		Reconstruct();
+		
+		if(mode == 1)
+		{
+			Intent intent = new Intent(this,sabikoi.app.PlayerActivity.class);
+			intent.putExtra("mode", StaticFinals.ModeStartPlaysheet);
+			String []filepathlist = (String[])songpaths.toArray(new String[0]); 
+			intent.putExtra("filepathlist", filepathlist);
+			int []playcountlist = new int[playcounts.size()];
+			for(int i=0;i<playcounts.size();i++)
+				playcountlist[i] = playcounts.get(i);
+			intent.putExtra("playcounts", playcountlist);
+			int []skipcountlist = new int[skipcounts.size()];
+			for(int i=0;i<skipcounts.size();i++)
+				skipcountlist[i] = skipcounts.get(i);
+			intent.putExtra("skipcounts", skipcountlist);
+			intent.putExtra("playingsheet", sheetname);
+			Random rng = new Random();
+			intent.putExtra("cursor", rng.nextInt(skipcounts.size()));
+			intent.putExtra("playoption", 1);
+	    startActivity(intent);		
+		}
   }
 
   void Reconstruct()
@@ -83,6 +107,7 @@ public class PlaysheetBrowser extends Activity implements OnItemClickListener{
 		songList.setScrollingCacheEnabled(false);
 		songList.setOnItemClickListener(this);
 		songList.setVerticalFadingEdgeEnabled(false);      
+		songList.setFastScrollEnabled(true);
 		setContentView(songList);
   }
 

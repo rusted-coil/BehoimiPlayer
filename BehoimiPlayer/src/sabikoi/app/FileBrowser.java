@@ -97,6 +97,7 @@ public class FileBrowser extends Activity implements OnItemClickListener{
 		fileList.setScrollingCacheEnabled(false);
 		fileList.setOnItemClickListener(this);
 		fileList.setVerticalFadingEdgeEnabled(false);      
+		fileList.setFastScrollEnabled(true);
       
 		setContentView(fileList);
 
@@ -150,6 +151,7 @@ public class FileBrowser extends Activity implements OnItemClickListener{
   	if(item.getItemId() >= CMENU_SHEETS && item.getItemId() < CMENU_SHEETS+playsheetname.size())
   	{
   		int i = item.getItemId() - CMENU_SHEETS;
+  		//ディレクトリをrecursiveに追加
   		if(files.get(selectingindex).isDirectory())
   		{
   			File dir = new File(files.get(selectingindex).toString());
@@ -157,8 +159,7 @@ public class FileBrowser extends Activity implements OnItemClickListener{
   			ArrayList<File> files2 = new ArrayList<File>();
   			files2.clear();
   			for(File file : filessub)
-  			{
-  				
+  			{  				
   				if(file.isHidden() == false && file.isDirectory() == false && getSuffix(file.getName()).equals("mp3"))
   					files2.add(file);
   			}
@@ -217,9 +218,53 @@ public class FileBrowser extends Activity implements OnItemClickListener{
   	ad.setPositiveButton("OK",new DialogInterface.OnClickListener(){		
 			@Override
 			public void onClick(DialogInterface dialog, int which) {
-				playsheetname.add(et.getText().toString());
-				CreateSheet(et.getText().toString());
-	  		AddSongToSheet(playsheetname.size()-1,selectingindex);
+				String newsheetname = et.getText().toString();
+				playsheetname.add(newsheetname);
+				CreateSheet(newsheetname);
+				
+	  		//ディレクトリをrecursiveに追加
+	  		if(files.get(selectingindex).isDirectory())
+	  		{
+	  			File dir = new File(files.get(selectingindex).toString());
+	  			File[] filessub = dir.listFiles();
+	  			ArrayList<File> files2 = new ArrayList<File>();
+	  			files2.clear();
+	  			for(File file : filessub)
+	  			{  				
+	  				if(file.isHidden() == false && file.isDirectory() == false && getSuffix(file.getName()).equals("mp3"))
+	  					files2.add(file);
+	  			}
+	  			
+	  			try{
+	  				Collections.sort(files2, new Comparator<File>(){
+	  					@Override
+	  					public int compare(File f1, File f2)
+	  					{
+	  						if(f1.isDirectory() == f2.isDirectory())
+	  							return f1.getName().toLowerCase().compareTo(f2.getName().toLowerCase());
+	  						else if(f1.isDirectory())
+	  							return -1;
+	  						return 1;
+	  					}
+	  				});
+	  			}catch (Exception e)
+	  			{
+	  				Log.d("error",e.toString());
+	  			}
+	  			
+	  			for(File file : files2)
+	  			{
+	  				ContentValues values = new ContentValues();
+	  				values.put("sheetname", newsheetname);
+	  				values.put("path", file.toString());
+	  				values.put("name", file.getName());
+	  				values.put("playcount", 0);
+	  				values.put("skipcount", 0);
+	  				db.insert("sheet", "", values);  				
+	  			}
+	  		}else
+	  			AddSongToSheet(playsheetname.size()-1,selectingindex);
+	  		
 				context.setResult(Activity.RESULT_OK);
 			}
 		});

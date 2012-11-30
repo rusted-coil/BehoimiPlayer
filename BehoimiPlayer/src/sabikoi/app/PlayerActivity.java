@@ -37,20 +37,25 @@ public class PlayerActivity extends Activity implements OnClickListener
 	String playingsheet;
 	boolean nowplaying = false;
 	SeekBar seekBar;
-	TextView songtitle,statistics;
+	TextView songtitle,statistics,playinfo;
 	ImageView playpause,skipbutton,toheadbutton;
+	Button randombuttonkari;
 	int[] playcounts;
 	int[] skipcounts;
+	int playoption;
 	private final int WC = ViewGroup.LayoutParams.WRAP_CONTENT; 
 	private final int FP = ViewGroup.LayoutParams.FILL_PARENT;
 	private final int ID_TV1 = 1;
 	private final int ID_TV2 = 7;
+	private final int ID_TV3 = 9;
 	private final int ID_SONGTITLE = 2;
 	private final int ID_PLAYPAUSE = 3;
 	private final int ID_SKIP = 4;
 	private final int ID_TOHEAD = 5;
 	private final int ID_SEEKBAR = 6;
 	private final int ID_STATISTICS = 8;
+	private final int ID_PLAYINFO = 10;
+	private final int ID_RANDOMBUTTON = 11;
 	SQLiteDatabase db;//データベースオブジェクト
 	
 	class ActivityHandler extends Handler 
@@ -135,6 +140,7 @@ public class PlayerActivity extends Activity implements OnClickListener
 		playingsheet = intent.getStringExtra("playingsheet");
 		playcounts = intent.getIntArrayExtra("playcounts");
 		skipcounts = intent.getIntArrayExtra("skipcounts");
+		playoption = intent.getIntExtra("playoption",0);
 		if(mode == StaticFinals.ModeStartFolder || mode == StaticFinals.ModeStartPlaysheet)
 		{
 			//再生の開始
@@ -176,6 +182,34 @@ public class PlayerActivity extends Activity implements OnClickListener
 		RelativeLayout.LayoutParams rlp8 = new RelativeLayout.LayoutParams(WC,WC);
 		rlp8.addRule(RelativeLayout.BELOW,ID_TV2);
 		layout.addView(statistics,rlp8);
+		
+		TextView tv3 = new TextView(this);
+		tv3.setText("再生オプション");
+		tv3.getPaint().setUnderlineText(true);
+		tv3.setId(ID_TV3);
+		RelativeLayout.LayoutParams rlp9 = new RelativeLayout.LayoutParams(FP,WC);
+		rlp9.addRule(RelativeLayout.BELOW,ID_STATISTICS);
+		layout.addView(tv3,rlp9);
+		
+		//再生オプション
+		playinfo = new TextView(this);
+		if(playoption == 1)
+			playinfo.setText("RANDOM");
+		else
+			playinfo.setText("NORMAL");
+		playinfo.setId(ID_PLAYINFO);
+		RelativeLayout.LayoutParams rlp10 = new RelativeLayout.LayoutParams(WC,WC);
+		rlp10.addRule(RelativeLayout.BELOW,ID_TV3);
+		layout.addView(playinfo,rlp10);
+
+		//ボタン
+		randombuttonkari = new Button(this);
+		randombuttonkari.setText("RANDOM");
+		randombuttonkari.setId(ID_RANDOMBUTTON);
+		randombuttonkari.setOnClickListener(this);
+		RelativeLayout.LayoutParams rlp11 = new RelativeLayout.LayoutParams(WC,WC);
+		rlp11.addRule(RelativeLayout.BELOW,ID_PLAYINFO);
+		layout.addView(randombuttonkari,rlp11);
 		
 		playpause = new ImageView(this);
 		playpause.setImageResource(R.drawable.pause);
@@ -280,6 +314,7 @@ public class PlayerActivity extends Activity implements OnClickListener
 		intent2.putExtra("playcounts", playcounts);
 		intent2.putExtra("skipcounts", skipcounts);
 		intent2.putExtra("playingsheet", playingsheet);
+		intent2.putExtra("playoption", playoption);
 		startService(intent2);
 		bindService(new Intent(this,PlayerService.class),conn,0);
 		nowplaying = true;
@@ -310,6 +345,14 @@ public class PlayerActivity extends Activity implements OnClickListener
 				}catch(Exception e)
 				{}
 			}
+		}
+		else if(v == randombuttonkari)
+		{
+			playoption = 1 - playoption;
+			if(playoption == 1)
+				playinfo.setText("RANDOM");
+			else
+				playinfo.setText("NORMAL");
 		}
 	}
 	boolean isServiceRunning(String className) {

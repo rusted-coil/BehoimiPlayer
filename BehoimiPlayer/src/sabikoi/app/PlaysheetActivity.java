@@ -36,6 +36,10 @@ public class PlaysheetActivity extends Activity implements OnItemClickListener{
 	ArrayList<String>  playsheetname = new ArrayList<String>();
 	String selectingname;
 	
+	//íËêî
+	static final int CMENU_DELETE = 10;
+	static final int CMENU_RPLAY = 20;
+	
   @Override
   public void onCreate(Bundle bundle) 
   {
@@ -89,16 +93,23 @@ public class PlaysheetActivity extends Activity implements OnItemClickListener{
   	ListView listView = (ListView) view;
   	CommandListArrayItem item = (CommandListArrayItem) listView.getItemAtPosition(adapterInfo.position);
   	selectingname = item.text;
-  	menu.add(0,0,0,"çÌèú");
+  	menu.add(0,CMENU_DELETE,0,"çÌèú");
+  	menu.add(0,CMENU_RPLAY,0,"ÉâÉìÉ_ÉÄçƒê∂");
   }
   public boolean onContextItemSelected(MenuItem item)
   {
 //    AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();    
     switch (item.getItemId()) 
     {
-	    case 0:
+	    case CMENU_DELETE:
 	    	DeleteSheet(selectingname);
 	    	Reconstruct();
+	    	return true;
+	    case CMENU_RPLAY:
+	  		Intent intent = new Intent(this,sabikoi.app.PlaysheetBrowser.class);
+	  		intent.putExtra("sheetname", selectingname);
+	  		intent.putExtra("mode", 1);
+	  		startActivity(intent);
 	    	return true;
 	    default:
 	    	return super.onContextItemSelected(item);
