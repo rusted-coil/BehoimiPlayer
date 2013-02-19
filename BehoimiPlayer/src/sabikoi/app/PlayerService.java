@@ -1,6 +1,7 @@
 package sabikoi.app;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Random;
 
 import android.app.Notification;
@@ -24,11 +25,11 @@ public class PlayerService extends Service  implements OnCompletionListener{
 	Messenger msgToActivity;
 	Messenger msgFromActivity;
 	MediaPlayer mp = null;
-	String[] filepathlist;
+	ArrayList<String> filepathlist = new ArrayList<String>();
+	ArrayList<Integer> playcounts;
+	ArrayList<Integer> skipcounts;
 	int cursor;
 	ReporterHandler reporter;
-	int[] playcounts;
-	int[] skipcounts;
 	int playoption;
 	String playingsheet;
 	SQLiteDatabase db;//データベースオブジェクト
@@ -116,17 +117,17 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		DBHelper dbHelper = new DBHelper(this);
 		db=dbHelper.getWritableDatabase();
 		
-		filepathlist = intent.getStringArrayExtra("filepathlist");
+		filepathlist = intent.getStringArrayListExtra("filepathlist");
 		cursor = intent.getIntExtra("cursor", 0);
 		int pos = intent.getIntExtra("seekposition", 0);
-		playcounts = intent.getIntArrayExtra("playcounts");
-		skipcounts = intent.getIntArrayExtra("skipcounts");
+		playcounts = intent.getIntegerArrayListExtra("playcounts");
+		skipcounts = intent.getIntegerArrayListExtra("skipcounts");
 		playingsheet = intent.getStringExtra("playingsheet");
 		playoption = intent.getIntExtra("playoption",0);
 		mp = new MediaPlayer();
 		
 		try {
-			mp.setDataSource(filepathlist[cursor]);
+			mp.setDataSource(filepathlist.get(cursor));
 			mp.prepare();
 			mp.setOnCompletionListener(this);
 			mp.seekTo(pos);
@@ -143,13 +144,13 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		notification.icon = R.drawable.ic_launcher;
 		Intent subintent = new Intent(this,sabikoi.app.PlayerActivity.class);
 		subintent.putExtra("mode",StaticFinals.ModeNormal);
-		subintent.putExtra("filepathlist",filepathlist);
+		subintent.putStringArrayListExtra("filepathlist",filepathlist);
 		subintent.putExtra("cursor",cursor);
 		subintent.putExtra("playingsheet",playingsheet);
-		subintent.putExtra("playcounts",playcounts);
-		subintent.putExtra("skipcounts",skipcounts);
+		subintent.putIntegerArrayListExtra("playcounts",playcounts);
+		subintent.putIntegerArrayListExtra("skipcounts",skipcounts);
 		PendingIntent pintent=PendingIntent.getActivity(this, 0, subintent, 0);
-		notification.setLatestEventInfo(this, "ベホイミプレイヤー", filepathlist[cursor].substring(filepathlist[cursor].lastIndexOf("/")+1), pintent);
+		notification.setLatestEventInfo(this, "ベホイミプレイヤー", filepathlist.get(cursor).substring(filepathlist.get(cursor).lastIndexOf("/")+1), pintent);
 		notification.flags = Notification.FLAG_FOREGROUND_SERVICE;
 		
 		startForeground(NOTIFICATION_ID,notification);
@@ -164,14 +165,14 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		notification.icon = R.drawable.ic_launcher;
 		Intent subintent = new Intent(this,sabikoi.app.PlayerActivity.class);
 		subintent.putExtra("mode",StaticFinals.ModeNormal);
-		subintent.putExtra("filepathlist",filepathlist);
+		subintent.putStringArrayListExtra("filepathlist",filepathlist);
 		subintent.putExtra("cursor",cursor);
 		subintent.putExtra("playingsheet",playingsheet);
-		subintent.putExtra("playcounts",playcounts);
-		subintent.putExtra("skipcounts",skipcounts);
+		subintent.putIntegerArrayListExtra("playcounts",playcounts);
+		subintent.putIntegerArrayListExtra("skipcounts",skipcounts);
 		subintent.putExtra("playoption",playoption);
 		PendingIntent pintent=PendingIntent.getActivity(this, 0, subintent, 0);
-		notification.setLatestEventInfo(this, "ベホイミプレイヤー", filepathlist[cursor].substring(filepathlist[cursor].lastIndexOf("/")+1), pintent);
+		notification.setLatestEventInfo(this, "ベホイミプレイヤー", filepathlist.get(cursor).substring(filepathlist.get(cursor).lastIndexOf("/")+1), pintent);
 		notification.flags = Notification.FLAG_FOREGROUND_SERVICE;
 		
 		nm.notify(NOTIFICATION_ID, notification);
@@ -185,35 +186,44 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		//カウントを更新
 		if(playoption == 1)
 		{
-			if(flag == 0)
+			//シートプレイ
+			if(playingsheet != null)
 			{
-				ContentValues values = new ContentValues();
-				values.put("playcount", playcounts[cursor]+1);
-				db.update("sheet", values,
-						"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
-				playcounts[cursor]++;
+				if(flag == 0)
+				{
+					ContentValues values = new ContentValues();
+					values.put("playcount", playcounts.get(cursor)+1);
+					db.update("sheet", values,
+							"sheetname=? AND path=?", new String[]{playingsheet,filepathlist.get(cursor)});
+					playcounts.set(cursor, playcounts.get(cursor)+1);
+				}
+				else
+				{
+					ContentValues values = new ContentValues();
+					values.put("playcount", playcounts.get(cursor)+1);
+					values.put("skipcount", skipcounts.get(cursor)+1);
+					db.update("sheet", values,
+							"sheetname=? AND path=?", new String[]{playingsheet,filepathlist.get(cursor)});
+					playcounts.set(cursor, playcounts.get(cursor)+1);
+					skipcounts.set(cursor, skipcounts.get(cursor)+1);
+				}
+				
+				while(true)
+				{
+					next = rng.nextInt(filepathlist.size());
+					if(skipcounts.get(next) != 0)
+					{
+						int ran = rng.nextInt(1+playcounts.get(next));
+						if(ran <= playcounts.get(next)-skipcounts.get(next))
+							break;
+					}else
+						break;
+				}
 			}
+			//フォルダプレイ
 			else
 			{
-				ContentValues values = new ContentValues();
-				values.put("playcount", playcounts[cursor]+1);
-				values.put("skipcount", skipcounts[cursor]+1);
-				db.update("sheet", values,
-						"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]});
-				playcounts[cursor]++;
-				skipcounts[cursor]++;
-			}
-			
-			while(true)
-			{
-				next = rng.nextInt(filepathlist.length);
-				if(skipcounts[next] != 0)
-				{
-					int ran = rng.nextInt(1+playcounts[next]);
-					if(ran <= playcounts[next]-skipcounts[next])
-						break;
-				}else
-					break;
+				next = rng.nextInt(filepathlist.size());
 			}
 			
 			cursor=next;		
@@ -221,13 +231,13 @@ public class PlayerService extends Service  implements OnCompletionListener{
 		else
 			cursor++;
 		
-		if(cursor >= filepathlist.length)
+		if(cursor >= filepathlist.size())
 			cursor = 0;
 		updateNotification();
 		try{
 			mp.reset();
 
-			mp.setDataSource(filepathlist[cursor]);
+			mp.setDataSource(filepathlist.get(cursor));
 			mp.prepare();
 			mp.setOnCompletionListener(this);
 			mp.start();										

@@ -1,5 +1,6 @@
 package sabikoi.app;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import android.app.Activity;
@@ -32,16 +33,16 @@ public class PlayerActivity extends Activity implements OnClickListener
 	Messenger msgToService;
 	Messenger msgFromService;
 	int nowposition;
-	String[] filepathlist;
+	ArrayList<String> filepathlist = new ArrayList<String>();
+	ArrayList<Integer> playcounts;
+	ArrayList<Integer> skipcounts;
 	int cursor;
 	String playingsheet;
 	boolean nowplaying = false;
 	SeekBar seekBar;
 	TextView songtitle,statistics,playinfo;
 	ImageView playpause,skipbutton,toheadbutton;
-	Button randombuttonkari;
-	int[] playcounts;
-	int[] skipcounts;
+	Button randombuttonkari,removebutton;
 	int playoption;
 	private final int WC = ViewGroup.LayoutParams.WRAP_CONTENT; 
 	private final int FP = ViewGroup.LayoutParams.FILL_PARENT;
@@ -56,6 +57,7 @@ public class PlayerActivity extends Activity implements OnClickListener
 	private final int ID_STATISTICS = 8;
 	private final int ID_PLAYINFO = 10;
 	private final int ID_RANDOMBUTTON = 11;
+	private final int ID_REMOVEBUTTON = 12;
 	SQLiteDatabase db;//データベースオブジェクト
 	
 	class ActivityHandler extends Handler 
@@ -87,12 +89,20 @@ public class PlayerActivity extends Activity implements OnClickListener
 	{
 		cursor = next;
 		Cursor c = db.query("sheet", new String[]{"playcount","skipcount"}, 
-				"sheetname=? AND path=?", new String[]{playingsheet,filepathlist[cursor]}, null,null,null);
+				"sheetname=? AND path=?", new String[]{playingsheet,filepathlist.get(cursor)}, null,null,null);
 		c.moveToFirst();
-		playcounts[cursor] = c.getInt(0);
-		skipcounts[cursor] = c.getInt(1);
-		songtitle.setText(filepathlist[cursor].substring(filepathlist[cursor].lastIndexOf("/")+1));
-		statistics.setText("再生回数:" + playcounts[cursor] + " / スキップ回数:"+skipcounts[cursor]);
+		playcounts.set(cursor,c.getInt(0));
+		skipcounts.set(cursor,c.getInt(1));
+		songtitle.setText(filepathlist.get(cursor).substring(filepathlist.get(cursor).lastIndexOf("/")+1));
+		statistics.setText("再生回数:" + playcounts.get(cursor) + " / スキップ回数:"+skipcounts.get(cursor));
+	}
+	
+	void DeleteSong(int id)
+	{
+		db.delete("sheet", "sheetname=? AND path=?",new String[]{playingsheet,filepathlist.get(id)});
+		filepathlist.remove(id);
+		playcounts.remove(id);
+		skipcounts.remove(id);
 	}
 	
 	ServiceConnection conn = new ServiceConnection()
@@ -135,11 +145,11 @@ public class PlayerActivity extends Activity implements OnClickListener
 		//起動情報の受取
 		Intent intent = getIntent();
 		int mode = intent.getIntExtra("mode",StaticFinals.ModeNormal);
-		filepathlist = intent.getStringArrayExtra("filepathlist");
+		filepathlist = intent.getStringArrayListExtra("filepathlist");
 		cursor = intent.getIntExtra("cursor", 0);
 		playingsheet = intent.getStringExtra("playingsheet");
-		playcounts = intent.getIntArrayExtra("playcounts");
-		skipcounts = intent.getIntArrayExtra("skipcounts");
+		playcounts = intent.getIntegerArrayListExtra("playcounts");
+		skipcounts = intent.getIntegerArrayListExtra("skipcounts");
 		playoption = intent.getIntExtra("playoption",0);
 		if(mode == StaticFinals.ModeStartFolder || mode == StaticFinals.ModeStartPlaysheet)
 		{
@@ -161,7 +171,7 @@ public class PlayerActivity extends Activity implements OnClickListener
 		
 		//タイトル
 		songtitle = new TextView(this);
-		songtitle.setText(filepathlist[cursor].substring(filepathlist[cursor].lastIndexOf("/")+1));
+		songtitle.setText(filepathlist.get(cursor).substring(filepathlist.get(cursor).lastIndexOf("/")+1));
 		songtitle.setId(ID_SONGTITLE);
 		RelativeLayout.LayoutParams rlp2 = new RelativeLayout.LayoutParams(WC,WC);
 		rlp2.addRule(RelativeLayout.BELOW,ID_TV1);
@@ -176,31 +186,48 @@ public class PlayerActivity extends Activity implements OnClickListener
 		layout.addView(tv2,rlp7);
 		
 		//統計情報
-		statistics = new TextView(this);
-		statistics.setText("再生回数:" + playcounts[cursor] + " / スキップ回数:"+skipcounts[cursor]);
-		statistics.setId(ID_STATISTICS);
-		RelativeLayout.LayoutParams rlp8 = new RelativeLayout.LayoutParams(WC,WC);
-		rlp8.addRule(RelativeLayout.BELOW,ID_TV2);
-		layout.addView(statistics,rlp8);
-		
-		TextView tv3 = new TextView(this);
-		tv3.setText("再生オプション");
-		tv3.getPaint().setUnderlineText(true);
-		tv3.setId(ID_TV3);
-		RelativeLayout.LayoutParams rlp9 = new RelativeLayout.LayoutParams(FP,WC);
-		rlp9.addRule(RelativeLayout.BELOW,ID_STATISTICS);
-		layout.addView(tv3,rlp9);
-		
-		//再生オプション
-		playinfo = new TextView(this);
-		if(playoption == 1)
-			playinfo.setText("RANDOM");
+		if(mode == StaticFinals.ModeStartPlaysheet)
+		{
+			statistics = new TextView(this);
+			statistics.setText("再生回数:" + playcounts.get(cursor) + " / スキップ回数:"+skipcounts.get(cursor));
+			statistics.setId(ID_STATISTICS);
+			RelativeLayout.LayoutParams rlp8 = new RelativeLayout.LayoutParams(WC,WC);
+			rlp8.addRule(RelativeLayout.BELOW,ID_TV2);
+			layout.addView(statistics,rlp8);
+			
+			TextView tv3 = new TextView(this);
+			tv3.setText("再生オプション");
+			tv3.getPaint().setUnderlineText(true);
+			tv3.setId(ID_TV3);
+			RelativeLayout.LayoutParams rlp9 = new RelativeLayout.LayoutParams(FP,WC);
+			rlp9.addRule(RelativeLayout.BELOW,ID_STATISTICS);
+			layout.addView(tv3,rlp9);
+			
+			//再生オプション
+			playinfo = new TextView(this);
+			if(playoption == 1)
+				playinfo.setText("RANDOM");
+			else
+				playinfo.setText("NORMAL");
+			playinfo.setId(ID_PLAYINFO);
+			RelativeLayout.LayoutParams rlp10 = new RelativeLayout.LayoutParams(WC,WC);
+			rlp10.addRule(RelativeLayout.BELOW,ID_TV3);
+			layout.addView(playinfo,rlp10);
+		}
 		else
-			playinfo.setText("NORMAL");
-		playinfo.setId(ID_PLAYINFO);
-		RelativeLayout.LayoutParams rlp10 = new RelativeLayout.LayoutParams(WC,WC);
-		rlp10.addRule(RelativeLayout.BELOW,ID_TV3);
-		layout.addView(playinfo,rlp10);
+		{
+			//再生オプション
+			playinfo = new TextView(this);
+			if(playoption == 1)
+				playinfo.setText("RANDOM");
+			else
+				playinfo.setText("NORMAL");
+			playinfo.setId(ID_PLAYINFO);
+			RelativeLayout.LayoutParams rlp10 = new RelativeLayout.LayoutParams(WC,WC);
+			rlp10.addRule(RelativeLayout.BELOW,ID_TV2);
+			layout.addView(playinfo,rlp10);
+		}
+		
 
 		//ボタン
 		randombuttonkari = new Button(this);
@@ -210,6 +237,14 @@ public class PlayerActivity extends Activity implements OnClickListener
 		RelativeLayout.LayoutParams rlp11 = new RelativeLayout.LayoutParams(WC,WC);
 		rlp11.addRule(RelativeLayout.BELOW,ID_PLAYINFO);
 		layout.addView(randombuttonkari,rlp11);
+		
+		removebutton = new Button(this);
+		removebutton.setText("除外して次へ");
+		removebutton.setId(ID_REMOVEBUTTON);
+		removebutton.setOnClickListener(this);
+		RelativeLayout.LayoutParams rlp12 = new RelativeLayout.LayoutParams(WC,WC);
+		rlp12.addRule(RelativeLayout.BELOW,ID_RANDOMBUTTON);
+		layout.addView(removebutton,rlp12);
 		
 		playpause = new ImageView(this);
 		playpause.setImageResource(R.drawable.pause);
@@ -308,11 +343,11 @@ public class PlayerActivity extends Activity implements OnClickListener
 	{
 		//再生の開始
     Intent intent2 = new Intent(this,sabikoi.app.PlayerService.class);
-    intent2.putExtra("filepathlist", filepathlist);
+    intent2.putStringArrayListExtra("filepathlist", filepathlist);
     intent2.putExtra("cursor", cursor);
 		intent2.putExtra("seekposition", nowposition);
-		intent2.putExtra("playcounts", playcounts);
-		intent2.putExtra("skipcounts", skipcounts);
+		intent2.putIntegerArrayListExtra("playcounts", playcounts);
+		intent2.putIntegerArrayListExtra("skipcounts", skipcounts);
 		intent2.putExtra("playingsheet", playingsheet);
 		intent2.putExtra("playoption", playoption);
 		startService(intent2);
@@ -353,6 +388,22 @@ public class PlayerActivity extends Activity implements OnClickListener
 				playinfo.setText("RANDOM");
 			else
 				playinfo.setText("NORMAL");
+		}
+		else if(v == removebutton)
+		{
+			PauseMedia();
+			if(cursor == filepathlist.size()-1)
+			{
+				DeleteSong(cursor);
+				cursor--;
+			}
+			else
+			{
+				DeleteSong(cursor);
+			}
+			playpause.setImageResource(R.drawable.play);
+//			nowposition = 0;
+//			PlayMedia();
 		}
 	}
 	boolean isServiceRunning(String className) {

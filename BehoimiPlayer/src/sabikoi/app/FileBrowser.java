@@ -37,7 +37,7 @@ import android.widget.ScrollView;
 public class FileBrowser extends Activity implements OnItemClickListener{
 	ListView fileList;
 	ArrayList<File> files = new ArrayList<File>();
-	String[] filepathlist;
+	ArrayList<String> filepathlist = new ArrayList<String>();
 	SQLiteDatabase db;//データベースオブジェクト
 	ArrayList<String>  playsheetname = new ArrayList<String>();
 	int selectingindex;
@@ -83,10 +83,10 @@ public class FileBrowser extends Activity implements OnItemClickListener{
 		}
 		
 		Bitmap icon=null;
-		filepathlist = new String[files.size()];
+		filepathlist.clear();
 		for(int i=0;i<files.size();i++)
 		{
-			filepathlist[i] = files.get(i).toString();
+			filepathlist.add(new String(files.get(i).toString()));
 			items.add(new FileListArrayItem(icon, files.get(i).getName(),files.get(i).isDirectory()));
 		}
 		
@@ -306,7 +306,7 @@ public class FileBrowser extends Activity implements OnItemClickListener{
 	{
 		ContentValues values = new ContentValues();
 		values.put("sheetname", playsheetname.get(sheetnum));
-		values.put("path", filepathlist[songnum]);
+		values.put("path", filepathlist.get(songnum));
 		values.put("name", files.get(songnum).getName());
 		values.put("playcount", 0);
 		values.put("skipcount", 0);

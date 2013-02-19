@@ -1,5 +1,12 @@
 package sabikoi.app;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,6 +23,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.Menu;
@@ -124,6 +132,10 @@ public class PlaysheetActivity extends Activity implements OnItemClickListener{
   	//アイテムの追加
   	MenuItem item0 = menu.add(0,0,0,"新規作成");
   	item0.setIcon(android.R.drawable.ic_menu_add);
+  	MenuItem item1 = menu.add(1,1,0,"エクスポート");
+  	item1.setIcon(android.R.drawable.ic_menu_save);
+  	MenuItem item2 = menu.add(1,2,0,"インポート");
+  	item2.setIcon(android.R.drawable.ic_menu_revert);
   	
 		return true;
   	
@@ -136,8 +148,144 @@ public class PlaysheetActivity extends Activity implements OnItemClickListener{
   		case 0:
   			showDialog(this,"プレイシート新規作成","プレイシート名");
   			return true;
+  		//エクスポート
+  		case 1:
+  			ExportDatabase();
+  			return true;
+  		//インポート
+  		case 2:
+  			ImportDatabase();
+  			return true;
   	}
   	return true;
+  }
+  
+  private void ExportDatabase()
+  {
+//	db.execSQL("create table if not exists sheets(name text primary key)");
+//	db.execSQL("create table if not exists sheet(sheetname text, path text, name text, playcount integer, skipcount integer)");
+  	File directory = Environment.getExternalStorageDirectory();
+  	String filepath = directory.getAbsolutePath() + "/export.txt";
+  	File file = new File(filepath);
+  	try{
+	  	FileOutputStream fs = new FileOutputStream(file);
+	  	OutputStreamWriter osw = new OutputStreamWriter(fs,"Shift-JIS");
+	  	PrintWriter pw = new PrintWriter(osw);
+	  	
+	  	pw.print("<playsheets>\n");
+	  	
+	  	//プレイシートデータを取得
+			Cursor c = db.query("sheets",
+					new String[]{"name"},
+					null,null,null,null,null);
+			if(c.moveToFirst())
+			{
+				do
+				{
+					String test = c.getString(0);
+			  	pw.print(test);
+			  	pw.print("\n");
+				}while(c.moveToNext());
+			}
+			c.close();
+
+	  	pw.print("<data>\n");
+	  	
+	  	//データを取得
+			Cursor cs = db.query("sheet",
+					new String[]{"sheetname","path","name","playcount","skipcount"},
+					null,null,null,null,null);
+			if(cs.moveToFirst())
+			{
+				do
+				{
+					String test = cs.getString(0);
+			  	pw.print(test);
+			  	pw.print("\n");
+
+					test = cs.getString(1);
+			  	pw.print(test);
+			  	pw.print("\n");
+
+					test = cs.getString(2);
+			  	pw.print(test);
+			  	pw.print("\n");
+
+					int kari = cs.getInt(3);
+			  	pw.print(kari);
+			  	pw.print("\n");
+
+					kari = cs.getInt(4);
+			  	pw.print(kari);
+			  	pw.print("\n");
+
+				}while(cs.moveToNext());
+			}
+			cs.close();
+
+	  	pw.close();
+	  	osw.close();
+	  	fs.close();
+  	}catch(Exception e)
+  	{
+  		e.printStackTrace();
+  	}
+  	
+  }
+  
+  private void ImportDatabase()
+  {
+//	db.execSQL("create table if not exists sheets(name text primary key)");
+//	db.execSQL("create table if not exists sheet(sheetname text, path text, name text, playcount integer, skipcount integer)");
+  	File directory = Environment.getExternalStorageDirectory();
+  	String filepath = directory.getAbsolutePath() + "/export.txt";
+  	File file = new File(filepath);
+  	try{
+	  	FileInputStream fs = new FileInputStream(file);
+	  	InputStreamReader osw = new InputStreamReader(fs,"Shift-JIS");
+	  	BufferedReader br = new BufferedReader(osw);
+
+	  	String line = br.readLine();
+	  	if(line.compareTo("<playsheets>") != 0)
+	  	{
+	  		br.close();
+	  		throw new Exception("hoge");
+	  	}
+
+	  	//シートリスト
+	  	while(true)
+	  	{
+	  		line = br.readLine();
+	  		if(line.compareTo("<data>") == 0)
+	  			break;
+	  		
+	  		CreateSheet(line);
+	  	}
+	  	
+	  	//データ
+	  	while((line = br.readLine()) != null)
+	  	{
+	    	ContentValues values = new ContentValues();
+	    	values.put("sheetname", line);
+	    	line = br.readLine();
+	    	values.put("path", line);
+	    	line = br.readLine();
+	    	values.put("name", line);
+	    	line = br.readLine();
+	    	values.put("playcount", Integer.valueOf(line));
+	    	line = br.readLine();
+	    	values.put("skipcount", Integer.valueOf(line));
+	    	db.insert("sheet","",values);	  		
+	  	}
+	  	
+	  	br.close();
+	  	osw.close();
+	  	fs.close();
+  	}catch(Exception e)
+  	{
+  		e.printStackTrace();
+  	}
+  	
   }
   
   //新規作成ダイアログ
@@ -169,6 +317,7 @@ public class PlaysheetActivity extends Activity implements OnItemClickListener{
   void DeleteSheet(String name)
   {
   	db.delete("sheets", "name=?", new String[]{name});
+		db.delete("sheet", "sheetname = " + name,null);
   }
 
 	@Override
